@@ -1,0 +1,18 @@
+package org.example.phishinglab.service;
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class EmailService {
+
+    public void sendVerificationEmail(String toEmail, String token) {
+        System.out.println("\n========================================");
+        System.out.println("📧 [ТЕСТОВЫЙ РЕЖИМ] Письмо не отправлено реально");
+        System.out.println("📧 Кому: " + toEmail);
+        System.out.println("🔗 Ссылка для подтверждения:");
+        System.out.println("http://localhost:8080/verify?token=" + token);
+        System.out.println("========================================\n");
+
+        // Для лабораторной работы этого достаточно!
+    }
+}
