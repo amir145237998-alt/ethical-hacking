@@ -1,0 +1,52 @@
+package org.example.phishinglab.controller;
+
+import org.example.phishinglab.model.*;
+import org.example.phishinglab.repository.*;
+import org.example.phishinglab.service.EmailService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import java.util.UUID;
+
+@RestController
+public class AuthController {
+
+    @Autowired
+    private PendingUserRepository pendingRepo;
+
+    @Autowired
+    private ValidUserRepository validRepo;
+
+    @Autowired
+    private EmailService emailService;
+
+    @GetMapping("/register")  // вместо @PostMapping
+    public String register(@RequestParam String email) {
+        if (!email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            return "❌ Невалидный email!";
+        }
+
+        String token = UUID.randomUUID().toString();
+        pendingRepo.save(new PendingUser(email, token));
+        emailService.sendVerificationEmail(email, token);
+
+        return "✅ Письмо отправлено на " + email;
+    }
+
+    @GetMapping("/verify")
+    public String verify(@RequestParam String token) {
+        PendingUser pending = pendingRepo.findByToken(token).orElse(null);
+        if (pending == null) {
+            return "❌ Неверный токен!";
+        }
+
+        validRepo.save(new ValidUser(pending.getEmail(), token));
+        pendingRepo.delete(pending);
+
+        return "✅ Email подтвержден!";
+    }
+
+    @GetMapping("/valid-users")
+    public Iterable<ValidUser> getValidUsers() {
+        return validRepo.findAll();
+    }
+}
