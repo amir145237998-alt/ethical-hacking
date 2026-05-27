@@ -1,0 +1,19 @@
+package org.example.phishinglab.repository;
+
+import org.example.phishinglab.model.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.List;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+
+    // УЯЗВИМЫЙ метод - использует native query с конкатенацией
+    @Query(value = "SELECT * FROM products WHERE name LIKE '%' || :name || '%'",
+            nativeQuery = true)
+    List<Product> searchProductsVulnerable(@Param("name") String name);
+
+    // ЗАЩИЩЕННЫЙ метод - использует параметризованный запрос
+    @Query("SELECT p FROM Product p WHERE p.name LIKE %:name%")
+    List<Product> searchProductsSafe(@Param("name") String name);
+}
