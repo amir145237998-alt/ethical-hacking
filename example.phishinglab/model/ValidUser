@@ -1,0 +1,27 @@
+package org.example.phishinglab.model;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "valid_users")
+public class ValidUser {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String email;
+    private String verifiedToken;
+
+    public ValidUser() {}
+
+    public ValidUser(String email, String verifiedToken) {
+        this.email = email;
+        this.verifiedToken = verifiedToken;
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getVerifiedToken() { return verifiedToken; }
+    public void setVerifiedToken(String verifiedToken) { this.verifiedToken = verifiedToken; }
+}
