@@ -1,0 +1,8 @@
+package org.example.phishinglab.repository;
+
+import org.example.phishinglab.model.ValidUser;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ValidUserRepository extends JpaRepository<ValidUser, Long> {
+    boolean existsByEmail(String email);
+}
