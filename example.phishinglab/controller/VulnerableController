@@ -1,0 +1,370 @@
+package org.example.phishinglab.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.sql.ResultSet;
+
+@RestController
+public class VulnerableController {
+
+    @Autowired
+    private DataSource dataSource;
+
+    // ==================== SQL INJECTION ====================
+
+    @GetMapping("/sql-inject")
+    @ResponseBody
+    public String sqlInjectPage() {
+        return "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head><title>SQL Injection Demo</title>\n" +
+                "<style>\n" +
+                "body { font-family: Arial; padding: 20px; background: #f0f0f0; }\n" +
+                ".container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }\n" +
+                "textarea { width: 100%; padding: 10px; font-family: monospace; border: 1px solid #ccc; border-radius: 5px; }\n" +
+                "button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }\n" +
+                "button:hover { background: #0056b3; }\n" +
+                "code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; display: block; margin: 10px 0; white-space: pre-wrap; }\n" +
+                ".example { background: #e9ecef; padding: 10px; border-radius: 5px; margin: 10px 0; }\n" +
+                "</style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "<div class='container'>\n" +
+                "<h1>🔴 SQL Injection Демонстрация</h1>\n" +
+                "<p>Введите SQL команду для выполнения в базе данных:</p>\n" +
+                "<form method='post' action='/sql-inject-execute'>\n" +
+                "<textarea name='sqlCode' rows='5' cols='60' placeholder='Введите SQL запрос...'></textarea><br><br>\n" +
+                "<button type='submit'>▶ Выполнить SQL</button>\n" +
+                "</form>\n" +
+                "<div class='example'>\n" +
+                "<strong>📝 Примеры для теста:</strong><br>\n" +
+                "<code>INSERT INTO stolen_credentials (email_or_username, password, ip_address, stolen_at) VALUES ('hacker@test.com', 'pass123', '127.0.0.1', NOW());</code>\n" +
+                "<code>SELECT * FROM stolen_credentials;</code>\n" +
+                "<code>DELETE FROM stolen_credentials WHERE email_or_username = 'hacker@test.com';</code>\n" +
+                "</div>\n" +
+                "</div>\n" +
+                "</body>\n" +
+                "</html>";
+    }
+
+    @PostMapping("/sql-inject-execute")
+    @ResponseBody
+    public String executeSql(@RequestParam String sqlCode) {
+        try {
+            Connection conn = dataSource.getConnection();
+            Statement stmt = conn.createStatement();
+            boolean hasResult = stmt.execute(sqlCode);
+
+            StringBuilder result = new StringBuilder();
+            result.append("<!DOCTYPE html>\n");
+            result.append("<html><head><title>SQL Result</title>\n");
+            result.append("<style>\n");
+            result.append("body { font-family: Arial; padding: 20px; background: #f0f0f0; }\n");
+            result.append(".container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }\n");
+            result.append("pre { background: #f4f4f4; padding: 10px; overflow-x: auto; border-radius: 5px; }\n");
+            result.append("table { border-collapse: collapse; width: 100%; margin-top: 10px; }\n");
+            result.append("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n");
+            result.append("th { background: #007bff; color: white; }\n");
+            result.append(".success { color: green; font-weight: bold; }\n");
+            result.append("</style>\n");
+            result.append("</head><body>\n");
+            result.append("<div class='container'>\n");
+            result.append("<h1>✅ Результат выполнения SQL</h1>\n");
+            result.append("<p><strong>Запрос:</strong></p>\n");
+            result.append("<pre>").append(escapeHtml(sqlCode)).append("</pre>\n");
+
+            if (hasResult) {
+                ResultSet rs = stmt.getResultSet();
+                result.append("<h3>📊 Результат:</h3>\n");
+                result.append("<table>\n");
+                int cols = rs.getMetaData().getColumnCount();
+                result.append("<tr>\n");
+                for (int i = 1; i <= cols; i++) {
+                    result.append("<th>").append(escapeHtml(rs.getMetaData().getColumnName(i))).append("</th>\n");
+                }
+                result.append("</tr>\n");
+                while (rs.next()) {
+                    result.append("<tr>\n");
+                    for (int i = 1; i <= cols; i++) {
+                        result.append("<td>").append(escapeHtml(rs.getString(i))).append("</td>\n");
+                    }
+                    result.append("</tr>\n");
+                }
+                result.append("</table>\n");
+                rs.close();
+            } else {
+                int affected = stmt.getUpdateCount();
+                result.append("<p class='success'>✅ Затронуто строк: ").append(affected).append("</p>\n");
+            }
+
+            stmt.close();
+            conn.close();
+            result.append("<br><a href='/sql-inject' style='background:#007bff;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;'>← Назад</a>\n");
+            result.append("</div>\n</body>\n</html>");
+            return result.toString();
+
+        } catch (Exception e) {
+            return "<!DOCTYPE html>\n" +
+                    "<html><head><title>Error</title>\n" +
+                    "<style>body{font-family:Arial;padding:20px;background:#f0f0f0;}</style>\n" +
+                    "</head><body>\n" +
+                    "<div style='max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;'>\n" +
+                    "<h1 style='color:red'>❌ Ошибка SQL!</h1>\n" +
+                    "<p><strong>Ошибка:</strong> " + escapeHtml(e.getMessage()) + "</p>\n" +
+                    "<a href='/sql-inject' style='background:#007bff;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;'>← Назад</a>\n" +
+                    "</div>\n</body>\n</html>";
+        }
+    }
+
+    // ==================== XSS ====================
+
+    @GetMapping("/xss")
+    @ResponseBody
+    public String xssDemo(@RequestParam(required = false) String input) {
+        if (input == null || input.isEmpty()) {
+            return "<!DOCTYPE html>\n" +
+                    "<html>\n" +
+                    "<head><title>XSS Demo</title>\n" +
+                    "<style>\n" +
+                    "body { font-family: Arial; padding: 20px; background: #f0f0f0; }\n" +
+                    ".container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; text-align: center; }\n" +
+                    "input { width: 80%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }\n" +
+                    "button { background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }\n" +
+                    ".warning { color: red; font-weight: bold; }\n" +
+                    "code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }\n" +
+                    "</style>\n" +
+                    "</head>\n" +
+                    "<body>\n" +
+                    "<div class='container'>\n" +
+                    "<h1>🔴 XSS Уязвимость</h1>\n" +
+                    "<p>Введите текст для отображения:</p>\n" +
+                    "<form method='get'>\n" +
+                    "<input type='text' name='input' size='50' placeholder='&lt;script&gt;alert(\"XSS\")&lt;/script&gt;'>\n" +
+                    "<br><button type='submit'>Отправить</button>\n" +
+                    "</form>\n" +
+                    "<div style='background:#e9ecef;padding:10px;margin-top:20px;border-radius:5px;'>\n" +
+                    "<strong>📝 Тест XSS:</strong><br>\n" +
+                    "<code>&lt;script&gt;alert('XSS Attack!')&lt;/script&gt;</code><br>\n" +
+                    "<code>&lt;img src=x onerror=alert('Hacked')&gt;</code><br>\n" +
+                    "<code>&lt;b&gt;Жирный текст&lt;/b&gt;</code>\n" +
+                    "</div>\n" +
+                    "</div>\n" +
+                    "</body>\n" +
+                    "</html>";
+        }
+        return "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head><title>XSS Result</title>\n" +
+                "<style>\n" +
+                "body { font-family: Arial; padding: 20px; background: #f0f0f0; }\n" +
+                ".container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; text-align: center; }\n" +
+                ".result { border: 2px solid red; padding: 10px; margin: 20px 0; background: #ffe6e6; }\n" +
+                "</style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "<div class='container'>\n" +
+                "<h1>🔴 Результат (УЯЗВИМЫЙ)</h1>\n" +
+                "<div class='result'>\n" +
+                "<strong>Вы ввели:</strong><br><br>\n" +
+                input + "\n" +
+                "</div>\n" +
+                "<a href='/xss' style='background:#007bff;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;'>← Назад</a>\n" +
+                "</div>\n" +
+                "</body>\n" +
+                "</html>";
+    }
+
+    // ==================== CSRF ====================
+
+    @PostMapping("/transfer")
+    @ResponseBody
+    public String transferMoney(@RequestParam String toAccount, @RequestParam int amount) {
+        System.out.println("\n💰💰💰 CSRF АТАКА! 💰💰💰");
+        System.out.println("Перевод: " + amount + "$ на счет: " + toAccount);
+        System.out.println("⚠️ Жертва не подозревала, что переводит деньги!\n");
+        return "Transfer completed: " + amount + "$ to " + toAccount;
+    }
+
+    @GetMapping("/csrf-attack")
+    @ResponseBody
+    public String csrfAttack() {
+        return "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head>\n" +
+                "    <title>CSRF Attack Demo</title>\n" +
+                "    <style>\n" +
+                "        body {\n" +
+                "            font-family: 'Arial', sans-serif;\n" +
+                "            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n" +
+                "            min-height: 100vh;\n" +
+                "            display: flex;\n" +
+                "            justify-content: center;\n" +
+                "            align-items: center;\n" +
+                "            margin: 0;\n" +
+                "            padding: 20px;\n" +
+                "        }\n" +
+                "        .container {\n" +
+                "            background: white;\n" +
+                "            border-radius: 20px;\n" +
+                "            padding: 40px;\n" +
+                "            max-width: 500px;\n" +
+                "            text-align: center;\n" +
+                "            box-shadow: 0 20px 60px rgba(0,0,0,0.3);\n" +
+                "            animation: fadeIn 0.5s ease-in;\n" +
+                "        }\n" +
+                "        @keyframes fadeIn {\n" +
+                "            from { opacity: 0; transform: translateY(-20px); }\n" +
+                "            to { opacity: 1; transform: translateY(0); }\n" +
+                "        }\n" +
+                "        h1 {\n" +
+                "            color: #ff6b6b;\n" +
+                "            font-size: 48px;\n" +
+                "            margin-bottom: 10px;\n" +
+                "        }\n" +
+                "        .gift-icon {\n" +
+                "            font-size: 80px;\n" +
+                "            animation: bounce 1s ease infinite;\n" +
+                "        }\n" +
+                "        @keyframes bounce {\n" +
+                "            0%, 100% { transform: translateY(0); }\n" +
+                "            50% { transform: translateY(-10px); }\n" +
+                "        }\n" +
+                "        h2 {\n" +
+                "            color: #4ecdc4;\n" +
+                "            font-size: 28px;\n" +
+                "            margin: 10px 0;\n" +
+                "        }\n" +
+                "        .prize {\n" +
+                "            background: #ffeaa7;\n" +
+                "            padding: 15px;\n" +
+                "            border-radius: 10px;\n" +
+                "            margin: 20px 0;\n" +
+                "            font-size: 18px;\n" +
+                "        }\n" +
+                "        button {\n" +
+                "            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);\n" +
+                "            color: white;\n" +
+                "            border: none;\n" +
+                "            padding: 15px 40px;\n" +
+                "            font-size: 22px;\n" +
+                "            border-radius: 50px;\n" +
+                "            cursor: pointer;\n" +
+                "            transition: transform 0.3s, box-shadow 0.3s;\n" +
+                "            font-weight: bold;\n" +
+                "            margin: 20px 0;\n" +
+                "        }\n" +
+                "        button:hover {\n" +
+                "            transform: scale(1.05);\n" +
+                "            box-shadow: 0 10px 30px rgba(238, 90, 36, 0.4);\n" +
+                "        }\n" +
+                "        .warning {\n" +
+                "            background: #ffebee;\n" +
+                "            border-left: 4px solid #f44336;\n" +
+                "            padding: 12px;\n" +
+                "            margin-top: 20px;\n" +
+                "            font-size: 14px;\n" +
+                "            color: #c62828;\n" +
+                "            border-radius: 5px;\n" +
+                "        }\n" +
+                "        .info {\n" +
+                "            background: #e3f2fd;\n" +
+                "            padding: 12px;\n" +
+                "            border-radius: 8px;\n" +
+                "            margin-top: 20px;\n" +
+                "            font-size: 14px;\n" +
+                "            text-align: left;\n" +
+                "        }\n" +
+                "        .info code {\n" +
+                "            background: #bbdefb;\n" +
+                "            padding: 2px 6px;\n" +
+                "            border-radius: 4px;\n" +
+                "        }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class='container'>\n" +
+                "        <div class='gift-icon'>🎁</div>\n" +
+                "        <h1>ПОЗДРАВЛЯЕМ!</h1>\n" +
+                "        <h2>Вы выиграли</h2>\n" +
+                "        <div class='prize'>\n" +
+                "            🏆 iPhone 15 Pro Max 🏆<br>\n" +
+                "            + 1,000,000 ₸\n" +
+                "        </div>\n" +
+                "        <p>Нажмите кнопку для получения приза!</p>\n" +
+                "        \n" +
+                "        <form id='csrfForm' action='/transfer' method='POST'>\n" +
+                "            <input type='hidden' name='toAccount' value='HACKER_ACCOUNT_CSRF'>\n" +
+                "            <input type='hidden' name='amount' value='10000'>\n" +
+                "        </form>\n" +
+                "        \n" +
+                "        <button onclick='attack()'>🎁 ЗАБРАТЬ ПРИЗ! 🎁</button>\n" +
+                "        \n" +
+                "        <div class='warning'>\n" +
+                "            ⚠️ Нажав на кнопку, вы участвуете в акции! ⚠️\n" +
+                "        </div>\n" +
+                "        \n" +
+                "        <div class='info'>\n" +
+                "            <strong>📚 ДЛЯ ПРЕПОДАВАТЕЛЯ (CSRF АТАКА):</strong><br><br>\n" +
+                "            Нажатие на кнопку отправляет скрытый запрос:<br>\n" +
+                "            <code>POST /transfer?toAccount=HACKER_ACCOUNT_CSRF&amp;amount=10000</code><br><br>\n" +
+                "            <strong>Результат в консоли IntelliJ:</strong><br>\n" +
+                "            <code>[MONEY TRANSFER] 10000 to HACKER_ACCOUNT_CSRF</code><br><br>\n" +
+                "            <strong>Как работает CSRF атака:</strong><br>\n" +
+                "            Жертва думает, что получает приз, но на самом деле переводит деньги злоумышленнику.\n" +
+                "        </div>\n" +
+                "    </div>\n" +
+                "    \n" +
+                "    <script>\n" +
+                "        function attack() {\n" +
+                "            document.getElementById('csrfForm').submit();\n" +
+                "            alert('🎁 Заявка на получение приза отправлена! Ждите подтверждение на почту!');\n" +
+                "        }\n" +
+                "    </script>\n" +
+                "</body>\n" +
+                "</html>";
+    }
+
+    // ==================== ДОПОЛНИТЕЛЬНО ====================
+
+    @GetMapping("/security/remediation")
+    @ResponseBody
+    public String remediation() {
+        return "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head><title>Рекомендации по безопасности</title>\n" +
+                "<style>\n" +
+                "body { font-family: Arial; padding: 20px; background: #f0f0f0; }\n" +
+                ".container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }\n" +
+                ".fix { background: #d5f5e3; border-left: 5px solid #27ae60; padding: 15px; margin: 10px 0; }\n" +
+                ".warning { background: #fadbd8; border-left: 5px solid #e74c3c; padding: 15px; margin: 10px 0; }\n" +
+                "h1 { color: #2c3e50; }\n" +
+                "code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }\n" +
+                "</style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "<div class='container'>\n" +
+                "<h1>🛡️ Рекомендации по безопасности</h1>\n" +
+                "<h2>1. XSS Защита</h2>\n" +
+                "<div class='fix'>✅ Экранировать вывод, использовать CSP заголовки</div>\n" +
+                "<h2>2. CSRF Защита</h2>\n" +
+                "<div class='fix'>✅ Использовать CSRF токены, SameSite cookies</div>\n" +
+                "<h2>3. SQL Injection Защита</h2>\n" +
+                "<div class='fix'>✅ Параметризованные запросы, валидация ввода</div>\n" +
+                "<h2>4. Phishing Защита</h2>\n" +
+                "<div class='fix'>✅ SPF, DKIM, DMARC, двухфакторная аутентификация</div>\n" +
+                "</div>\n" +
+                "</body>\n" +
+                "</html>";
+    }
+
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
+    }
+}
