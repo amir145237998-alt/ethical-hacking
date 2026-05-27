@@ -1,0 +1,31 @@
+package org.example.phishinglab.controller;
+
+import org.springframework.web.bind.annotation.*;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+@RestController
+public class NetworkController {
+
+    // Демонстрация network scanning через ping
+    @GetMapping("/network/ping")
+    @ResponseBody
+    public String pingHost(@RequestParam String host) {
+        try {
+            // УЯЗВИМОСТЬ: command injection возможна!
+            Process process = Runtime.getRuntime().exec("ping -n 1 " + host);
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()));
+
+            StringBuilder output = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+
+            return "<pre>" + output.toString() + "</pre>";
+        } catch (Exception e) {
+            return "Ошибка: " + e.getMessage();
+        }
+    }
+}
