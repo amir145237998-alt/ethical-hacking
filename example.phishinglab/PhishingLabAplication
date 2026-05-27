@@ -1,0 +1,16 @@
+package org.example.phishinglab;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class PhishingLabApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(PhishingLabApplication.class, args);
+        System.out.println("\n========================================");
+        System.out.println("✅ ЛАБОРАТОРНАЯ РАБОТА ЗАПУЩЕНА!");
+        System.out.println("📧 Почта: amir1452379898@gmail.com");
+        System.out.println("🌐 http://localhost:8080");
+        System.out.println("========================================\n");
+    }
+}
